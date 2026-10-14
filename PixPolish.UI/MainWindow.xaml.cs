@@ -12,6 +12,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 860));
+        try { AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "PixPolish.ico")); } catch { /* icon is cosmetic */ }
         InitRound();
         InitCollage();
     }

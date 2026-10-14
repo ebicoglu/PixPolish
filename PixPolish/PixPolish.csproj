@@ -5,6 +5,7 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <ApplicationIcon>..\PixPolish.UI\Assets\PixPolish.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

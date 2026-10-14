@@ -1,3 +1,5 @@
+<img src="PixPolish.UI/Assets/icon.png" alt="PixPolish icon" width="96" align="right">
+
 # PixPolish
 
 A small Windows console tool for preparing images for articles. It works on the **current folder** (the folder you run it from), not the folder where the exe lives.
