@@ -28,6 +28,8 @@ dotnet build PixPolish.UI -c Release -o PixPolish.UI\out\
 dotnet publish PixPolish.UI -c Release -o dist\
 ```
 
+**Download:** the ready-made exe is attached to the [latest release](https://github.com/ebicoglu/PixPolish/releases/latest) (it is too big to store in the repository itself).
+
 This creates `dist\PixPolishUI.exe` (about 145 MB): one self-contained file with .NET and the Windows App SDK inside, so it runs on any Windows 10/11 x64 PC with nothing installed. Copy it anywhere. On first start it unpacks its runtime to a temp folder, so the first launch takes a few seconds longer.
 
 The WinUI build needs the trailing `\` on its output path, otherwise the XAML files are written next to the project and the app crashes on start.
