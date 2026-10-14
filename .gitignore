@@ -6,3 +6,4 @@ out/
 *.suo
 # stray XAML compiler output when the UI is built without a trailing backslash on -o
 out*.xbf
+dist/
