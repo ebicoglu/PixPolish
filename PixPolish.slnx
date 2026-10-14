@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="PixPolish.Core/PixPolish.Core.csproj" />
+  <Project Path="PixPolish.UI/PixPolish.UI.csproj" />
+  <Project Path="PixPolish/PixPolish.csproj" />
+</Solution>

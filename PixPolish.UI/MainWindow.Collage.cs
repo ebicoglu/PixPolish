@@ -1,0 +1,164 @@
+using System.Collections.ObjectModel;
+using System.Runtime.InteropServices.WindowsRuntime;
+using Microsoft.UI;
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Rectangle = Microsoft.UI.Xaml.Shapes.Rectangle;
+using Microsoft.Windows.Storage.Pickers;
+using Windows.Storage.Streams;
+
+namespace PixPolish.UI;
+
+public sealed class PhotoItem
+{
+    public PhotoItem(string path) => Path = path;
+    public string Path { get; }
+    public string Name => System.IO.Path.GetFileName(Path);
+}
+
+// Collage tab: layout gallery, live preview, photo list.
+public sealed partial class MainWindow
+{
+    static readonly (string Name, double W, double H)[] Aspects =
+        { ("Landscape 4:3", 4, 3), ("Landscape 3:2", 3, 2), ("Wide 16:9", 16, 9), ("Square 1:1", 1, 1), ("Portrait 3:4", 3, 4) };
+
+    static readonly (string Name, string Color)[] Backgrounds =
+        { ("White", "#FFFFFF"), ("Light gray", "#E8EAEC"), ("Black", "#000000"), ("Transparent", "transparent") };
+
+    readonly ObservableCollection<PhotoItem> _photos = new();
+    readonly CollageRenderer _previewRenderer = new(maxSide: 900);
+    readonly object _previewLock = new();
+    bool _collageReady;
+    int _previewVersion;
+
+    void InitCollage()
+    {
+        foreach (var layout in CollageLayouts.All)
+        {
+            var thumb = new Canvas { Width = 56, Height = 44 };
+            foreach (var c in layout.Cells)
+            {
+                var r = new Rectangle
+                {
+                    Width = Math.Max(1, c.Width * 56 - 2),
+                    Height = Math.Max(1, c.Height * 44 - 2),
+                    Fill = new SolidColorBrush(Colors.SlateGray),
+                };
+                Canvas.SetLeft(r, c.X * 56 + 1);
+                Canvas.SetTop(r, c.Y * 44 + 1);
+                thumb.Children.Add(r);
+            }
+            ToolTipService.SetToolTip(thumb, $"{layout.Name} ({layout.Count})");
+            LayoutGrid.Items.Add(thumb);
+        }
+        LayoutGrid.SelectedIndex = 4; // two on top, one below
+
+        foreach (var a in Aspects) AspectCombo.Items.Add(a.Name);
+        AspectCombo.SelectedIndex = 0;
+        foreach (var b in Backgrounds) BackgroundCombo.Items.Add(b.Name);
+        BackgroundCombo.SelectedIndex = 0;
+
+        PhotoList.ItemsSource = _photos;
+        _photos.CollectionChanged += (_, _) => { UpdatePhotosHeader(); _ = RefreshPreview(); };
+
+        _collageReady = true;
+        _ = RefreshPreview();
+    }
+
+    void LoadPhotosFromFolder(string dir)
+    {
+        _photos.Clear();
+        if (!Directory.Exists(dir)) return;
+        foreach (var f in ImageTools.FindImages(dir)
+                     .Where(f => !Path.GetFileName(f).StartsWith("collage", StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(f => f, StringComparer.OrdinalIgnoreCase))
+            _photos.Add(new PhotoItem(f));
+    }
+
+    void UpdatePhotosHeader()
+    {
+        int cells = (LayoutGrid.SelectedIndex >= 0 ? CollageLayouts.All[LayoutGrid.SelectedIndex].Count : 0);
+        PhotosHeader.Text = $"Photos: {_photos.Count} (layout uses {cells}) - drag to reorder";
+    }
+
+    void CollageOption_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (!_collageReady) return;
+        UpdatePhotosHeader();
+        _ = RefreshPreview();
+    }
+
+    void CollageSlider_Changed(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_collageReady) _ = RefreshPreview();
+    }
+
+    async void ChoosePhotos_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var picker = new FileOpenPicker(AppWindow.Id);
+            foreach (var ext in ImageTools.ImageExtensions) picker.FileTypeFilter.Add(ext);
+            var files = await picker.PickMultipleFilesAsync();
+            if (files == null || files.Count == 0) return;
+            _photos.Clear();
+            foreach (var f in files) _photos.Add(new PhotoItem(f.Path));
+        }
+        catch (Exception ex) { Log("Photo picker failed: " + ex.Message); }
+    }
+
+    void RemovePhoto_Click(object sender, RoutedEventArgs e)
+    {
+        if (PhotoList.SelectedItem is PhotoItem p) _photos.Remove(p);
+    }
+
+    (CollageOptions Options, int LongSide) CurrentOptions(int longSide)
+    {
+        var layout = CollageLayouts.All[Math.Max(0, LayoutGrid.SelectedIndex)];
+        var (_, rw, rh) = Aspects[Math.Max(0, AspectCombo.SelectedIndex)];
+        int w = rw >= rh ? longSide : (int)(longSide * rw / rh);
+        int h = rw >= rh ? (int)(longSide * rh / rw) : longSide;
+        string bg = Backgrounds[Math.Max(0, BackgroundCombo.SelectedIndex)].Color;
+        return (new CollageOptions(layout, w, h, SpacingSlider.Value, CornerSlider.Value, bg), longSide);
+    }
+
+    async Task RefreshPreview()
+    {
+        int version = ++_previewVersion;
+        var options = CurrentOptions(800).Options;
+        var photos = _photos.Select(p => p.Path).ToList();
+        byte[] png;
+        try { png = await Task.Run(() => { lock (_previewLock) return _previewRenderer.RenderPng(options, photos); }); }
+        catch (Exception ex) { Log("Preview failed: " + ex.Message); return; }
+        if (version != _previewVersion) return; // a newer render is already on its way
+
+        using var stream = new InMemoryRandomAccessStream();
+        await stream.WriteAsync(png.AsBuffer());
+        stream.Seek(0);
+        var image = new BitmapImage();
+        await image.SetSourceAsync(stream);
+        PreviewImage.Source = image;
+    }
+
+    /// <summary>Renders the collage at full resolution and saves it as collage.png (collage-2.png, ... if it exists).</summary>
+    async Task SaveCollage(string dir)
+    {
+        // Read the controls on the UI thread, render on a background thread.
+        var (options, _) = CurrentOptions(2400);
+        var photos = _photos.Select(p => p.Path).ToList();
+        if (photos.Count == 0) { Log("No photos to use."); return; }
+
+        string output = Path.Combine(dir, "collage.png");
+        for (int i = 2; File.Exists(output); i++) output = Path.Combine(dir, $"collage-{i}.png");
+
+        await Task.Run(() =>
+        {
+            using var renderer = new CollageRenderer();
+            using var bmp = renderer.Render(options, photos);
+            bmp.Save(output, System.Drawing.Imaging.ImageFormat.Png);
+        });
+        Log($"Saved {output} ({options.Width}x{options.Height}, '{options.Layout.Name}', {Math.Min(photos.Count, options.Layout.Count)}/{options.Layout.Count} cells filled)");
+    }
+}
