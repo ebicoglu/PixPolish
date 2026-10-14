@@ -17,7 +17,7 @@ public sealed class PhotoItem
     {
         Path = path;
         // Decoding at thumbnail size keeps big photos cheap.
-        Thumbnail = new BitmapImage { DecodePixelWidth = 144, UriSource = new Uri(path) };
+        Thumbnail = new BitmapImage { DecodePixelWidth = 260, UriSource = new Uri(path) };
     }
     public string Path { get; }
     public BitmapImage Thumbnail { get; }

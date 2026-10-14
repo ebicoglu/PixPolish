@@ -12,6 +12,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1100, 860));
+        InitRound();
         InitCollage();
     }
 
@@ -39,6 +40,7 @@ public sealed partial class MainWindow : Window
             combo.SelectedIndex = 0;
         }
         LoadPhotosFromFolder(FolderBox.Text);
+        LoadRoundFromFolder(FolderBox.Text);
     }
 
     void Log(string line) => DispatcherQueue.TryEnqueue(() => LogBox.Text += line + "\n");
@@ -46,8 +48,9 @@ public sealed partial class MainWindow : Window
     async void Run_Click(object sender, RoutedEventArgs e)
     {
         string dir = FolderBox.Text;
-        bool roundPickedFiles = ToolPivot.SelectedIndex == 0 && _roundFiles.Count > 0;
-        if (!roundPickedFiles && !Directory.Exists(dir)) { Log("Pick an existing folder first."); return; }
+        bool isRound = ToolPivot.SelectedIndex == 0; // the round tool works on the thumbnail list, not on the folder
+        if (isRound && _roundItems.Count == 0) { Log("No images in the list."); return; }
+        if (!isRound && !Directory.Exists(dir)) { Log("Pick an existing folder first."); return; }
 
         LogBox.Text = "";
         RunButton.IsEnabled = false;
@@ -57,12 +60,9 @@ public sealed partial class MainWindow : Window
             {
                 double percent = RadiusBox.Value;
                 bool overwrite = PostfixCheck.IsChecked != true; // originals are replaced unless the postfix option is ticked
-                if (roundPickedFiles)
-                {
-                    var files = _roundFiles.ToList();
-                    await Task.Run(() => ImageTools.RoundFiles(files, percent, overwrite, Log));
-                }
-                else await Task.Run(() => ImageTools.Round(dir, percent, overwrite, Log));
+                var files = _roundItems.Select(i => i.Path).ToList();
+                await Task.Run(() => ImageTools.RoundFiles(files, percent, overwrite, Log));
+                if (overwrite) RefreshRoundItemsAfterOverwrite();
             }
             else if (ToolPivot.SelectedIndex == 3)
             {

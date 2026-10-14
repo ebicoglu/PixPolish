@@ -79,7 +79,7 @@ Markdown: post.md
 
 Scans the current folder (non-recursive) for `.png .jpg .jpeg .bmp .gif .tif .tiff` and rounds the corners. If you name image files (`PixPolish.exe round a.jpg "my pic.png" 4`), only those are rounded and the folder is ignored; results are saved next to each file.
 
-In the WinUI app you can do the same without a folder: use **Pick images...** on the *Round corners* tab, or **drop images (or a folder) anywhere in the window**. Dropped images go to the round tool (or are added to the collage when the Collage tab is open); a dropped folder fills the folder box.
+In the WinUI app the *Round corners* tab shows **thumbnails of every image that will be rounded**: the images of the chosen folder, plus any you add with **Add images...** or by **dropping images (or a folder) anywhere in the window**. Remove the ones you don't want with the X on a thumbnail (or *Clear list*); **Run rounds exactly what is in the list**. Dropped images are added to the collage instead when the Collage tab is open.
 
 | Option | Meaning |
 |---|---|

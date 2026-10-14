@@ -27,18 +27,48 @@
         <!-- Tool selection -->
         <Pivot Grid.Row="1" x:Name="ToolPivot" Height="440">
             <PivotItem Header="Round corners">
-                <StackPanel Spacing="12" Padding="0,12,0,0">
-                    <NumberBox x:Name="RadiusBox" Header="Corner radius (% of the shorter side)" Value="3" Minimum="0" Maximum="50"
-                               SpinButtonPlacementMode="Inline" Width="280" HorizontalAlignment="Left" />
-                    <CheckBox x:Name="PostfixCheck" Content="Keep originals: add a &quot;-rounded&quot; postfix to the new files (otherwise the originals are overwritten)" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Pick images..." Click="PickRoundImages_Click" />
-                        <Button Content="Clear" Click="ClearRoundImages_Click" />
-                        <TextBlock x:Name="RoundSelectionText" VerticalAlignment="Center" Opacity="0.8" />
+                <Grid ColumnSpacing="16" Padding="0,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="320" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="12">
+                        <NumberBox x:Name="RadiusBox" Header="Corner radius (% of the shorter side)" Value="3" Minimum="0" Maximum="50"
+                                   SpinButtonPlacementMode="Inline" HorizontalAlignment="Stretch" />
+                        <CheckBox x:Name="PostfixCheck" Content="Keep originals: add a &quot;-rounded&quot; postfix to the new files (otherwise the originals are overwritten)" />
+                        <Button Content="Add images..." Click="PickRoundImages_Click" />
+                        <Button Content="Reload folder images" Click="ReloadRoundFolder_Click" />
+                        <Button Content="Clear list" Click="ClearRoundImages_Click" />
+                        <TextBlock Text="Drop images (or a folder) anywhere in this window to add them. Remove the ones you don't want with the X on a thumbnail; Run rounds everything in the list."
+                                   TextWrapping="Wrap" Opacity="0.7" />
                     </StackPanel>
-                    <TextBlock Text="Or drop images (or a folder) anywhere in this window. With no images picked, the whole folder is rounded."
-                               TextWrapping="Wrap" Opacity="0.7" />
-                </StackPanel>
+
+                    <Grid Grid.Column="1" RowSpacing="6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <TextBlock x:Name="RoundSelectionText" FontWeight="SemiBold" />
+                        <GridView Grid.Row="1" x:Name="RoundGrid" SelectionMode="None" IsItemClickEnabled="False">
+                            <GridView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Width="130" Margin="2">
+                                        <StackPanel Spacing="4">
+                                            <Border Width="130" Height="98" CornerRadius="4">
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <TextBlock Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                        <Button Content="&#xE711;" FontFamily="Segoe MDL2 Assets" FontSize="11" Padding="6"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4"
+                                                ToolTipService.ToolTip="Remove from the list" Click="RemoveRoundItem_Click" />
+                                    </Grid>
+                                </DataTemplate>
+                            </GridView.ItemTemplate>
+                        </GridView>
+                    </Grid>
+                </Grid>
             </PivotItem>
             <PivotItem Header="Clean up unused">
                 <StackPanel Spacing="12" Padding="0,12,0,0">
