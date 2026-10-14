@@ -46,7 +46,8 @@ public sealed partial class MainWindow : Window
     async void Run_Click(object sender, RoutedEventArgs e)
     {
         string dir = FolderBox.Text;
-        if (!Directory.Exists(dir)) { Log("Pick an existing folder first."); return; }
+        bool roundPickedFiles = ToolPivot.SelectedIndex == 0 && _roundFiles.Count > 0;
+        if (!roundPickedFiles && !Directory.Exists(dir)) { Log("Pick an existing folder first."); return; }
 
         LogBox.Text = "";
         RunButton.IsEnabled = false;
@@ -57,7 +58,12 @@ public sealed partial class MainWindow : Window
                 double percent = RadiusBox.Value;
                 bool overwrite = OverwriteCheck.IsChecked == true;
                 if (overwrite && !await Confirm("Overwrite originals?", "The original images in this folder will be replaced with rounded PNGs. This can't be undone.")) return;
-                await Task.Run(() => ImageTools.Round(dir, percent, overwrite, Log));
+                if (roundPickedFiles)
+                {
+                    var files = _roundFiles.ToList();
+                    await Task.Run(() => ImageTools.RoundFiles(files, percent, overwrite, Log));
+                }
+                else await Task.Run(() => ImageTools.Round(dir, percent, overwrite, Log));
             }
             else if (ToolPivot.SelectedIndex == 3)
             {

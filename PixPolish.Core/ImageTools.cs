@@ -25,14 +25,20 @@ public static class ImageTools
             .ToList();
 
         log($"Scanning {dir}: {files.Count} image(s), radius {percent}%{(overwrite ? ", OVERWRITE" : "")}");
+        return RoundFiles(files, percent, overwrite, log);
+    }
 
+    /// <summary>Rounds the corners of the given image files (each result is saved next to its original). Returns the number processed.</summary>
+    public static int RoundFiles(IReadOnlyCollection<string> files, double percent, bool overwrite, Action<string> log)
+    {
+        if (files.Count == 0) { log("No images to round."); return 0; }
         int done = 0;
         Parallel.ForEach(files, file =>
         {
             try
             {
                 // Output is always PNG so the transparent corners are preserved.
-                string output = Path.Combine(dir, Path.GetFileNameWithoutExtension(file) + (overwrite ? "" : RoundedPostfix) + ".png");
+                string output = Path.Combine(Path.GetDirectoryName(file)!, Path.GetFileNameWithoutExtension(file) + (overwrite ? "" : RoundedPostfix) + ".png");
                 using (var source = new Bitmap(file))
                 using (var image = new Bitmap(source.Width, source.Height, PixelFormat.Format32bppArgb))
                 {

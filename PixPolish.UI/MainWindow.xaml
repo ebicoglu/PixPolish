@@ -5,7 +5,7 @@
     xmlns:local="using:PixPolish.UI"
     Title="PixPolish">
 
-    <Grid Padding="24" RowSpacing="16">
+    <Grid Padding="24" RowSpacing="16" Background="Transparent" AllowDrop="True" DragOver="Window_DragOver" Drop="Window_Drop">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -31,6 +31,13 @@
                     <NumberBox x:Name="RadiusBox" Header="Corner radius (% of the shorter side)" Value="3" Minimum="0" Maximum="50"
                                SpinButtonPlacementMode="Inline" Width="280" HorizontalAlignment="Left" />
                     <CheckBox x:Name="OverwriteCheck" Content="Overwrite originals (otherwise saves name-rounded.png copies)" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="Pick images..." Click="PickRoundImages_Click" />
+                        <Button Content="Clear" Click="ClearRoundImages_Click" />
+                        <TextBlock x:Name="RoundSelectionText" VerticalAlignment="Center" Opacity="0.8" />
+                    </StackPanel>
+                    <TextBlock Text="Or drop images (or a folder) anywhere in this window. With no images picked, the whole folder is rounded."
+                               TextWrapping="Wrap" Opacity="0.7" />
                 </StackPanel>
             </PivotItem>
             <PivotItem Header="Clean up unused">

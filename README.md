@@ -29,7 +29,7 @@ The output folder contains `PixPolish.exe` and the `.bat` helpers. A `.bat` is r
 ## Usage
 
 ```bash
-PixPolish.exe round   [radiusPercent] [--overwrite]
+PixPolish.exe round   [files...] [radiusPercent] [--overwrite]
 PixPolish.exe cleanup [file.md] [--dry-run]
 PixPolish.exe missing [file.md]
 PixPolish.exe collage [photos...] [options]
@@ -77,7 +77,9 @@ Markdown: post.md
 
 ### `round`
 
-Scans the current folder (non-recursive) for `.png .jpg .jpeg .bmp .gif .tif .tiff` and rounds the corners.
+Scans the current folder (non-recursive) for `.png .jpg .jpeg .bmp .gif .tif .tiff` and rounds the corners. If you name image files (`PixPolish.exe round a.jpg "my pic.png" 4`), only those are rounded and the folder is ignored; results are saved next to each file.
+
+In the WinUI app you can do the same without a folder: use **Pick images...** on the *Round corners* tab, or **drop images (or a folder) anywhere in the window**. Dropped images go to the round tool (or are added to the collage when the Collage tab is open); a dropped folder fills the folder box.
 
 | Option | Meaning |
 |---|---|

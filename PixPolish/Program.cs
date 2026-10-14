@@ -13,7 +13,18 @@ switch (command)
     case "round":
         double percent = opts.Select(a => double.TryParse(a, CultureInfo.InvariantCulture, out var v) ? v : (double?)null)
             .FirstOrDefault(v => v != null) ?? 3;
-        ImageTools.Round(dir, percent, opts.Any(a => a is "--overwrite" or "-o"), Console.WriteLine);
+        bool overwrite = opts.Any(a => a is "--overwrite" or "-o");
+        // Image files named on the command line are rounded instead of the whole folder.
+        var named = opts.Where(a => !a.StartsWith('-') && !double.TryParse(a, CultureInfo.InvariantCulture, out _))
+            .Select(a => Path.GetFullPath(a, dir)).ToList();
+        if (named.Count == 0) ImageTools.Round(dir, percent, overwrite, Console.WriteLine);
+        else
+        {
+            var missingFiles = named.Where(f => !File.Exists(f)).ToList();
+            foreach (var f in missingFiles) Console.WriteLine($"Not found: {f}");
+            ImageTools.RoundFiles(named.Except(missingFiles).ToList(), percent, overwrite, Console.WriteLine);
+            if (missingFiles.Count > 0) return 1;
+        }
         return 0;
     case "cleanup":
         var unused = ImageTools.Cleanup(dir, opts.FirstOrDefault(a => !a.StartsWith('-')), opts.Any(a => a is "--dry-run" or "-n"), Console.WriteLine);
@@ -27,7 +38,7 @@ switch (command)
         Console.WriteLine("""
             PixPolish <command> [options]
 
-              round   [radiusPercent] [--overwrite]  Round image corners in the current folder.
+              round   [files...] [radiusPercent] [--overwrite]  Round image corners (the given files, or all in the current folder).
                                                      Default radius 3 (% of shorter side). Saves <name>-rounded.png,
                                                      or replaces the original with --overwrite.
               cleanup [file.md] [--dry-run]          Delete (to Recycle Bin) images in the current folder that are not
