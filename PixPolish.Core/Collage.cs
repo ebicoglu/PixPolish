@@ -47,6 +47,65 @@ public static class CollageLayouts
         : All.FirstOrDefault(l => l.Name.Contains(key, StringComparison.OrdinalIgnoreCase));
 }
 
+/// <summary>
+/// A draggable line between cells: a vertical line (x = Pos) or horizontal line (y = Pos), spanning From..To on the other axis.
+/// Moving it resizes the cells that end at it (Before) and start at it (After).
+/// </summary>
+public record Divider(bool Vertical, float Pos, float From, float To, int[] Before, int[] After);
+
+public static class CollageDividers
+{
+    const float Eps = 0.002f;
+    public const float MinCellSize = 0.1f; // fraction of the canvas
+
+    /// <summary>The lines between cells that can be dragged. Collinear cells share one line, so a grid column/row moves together.</summary>
+    public static List<Divider> Find(IReadOnlyList<RectangleF> cells)
+    {
+        var result = new List<Divider>();
+        foreach (bool vertical in new[] { true, false })
+        {
+            float End(RectangleF c) => vertical ? c.Right : c.Bottom;
+            float Start(RectangleF c) => vertical ? c.Left : c.Top;
+            var positions = new List<float>();
+            foreach (var c in cells)
+                if (End(c) < 1 - Eps && !positions.Any(p => Math.Abs(p - End(c)) < Eps)) positions.Add(End(c));
+
+            foreach (float pos in positions.Order())
+            {
+                var before = Enumerable.Range(0, cells.Count).Where(i => Math.Abs(End(cells[i]) - pos) < Eps).ToArray();
+                var after = Enumerable.Range(0, cells.Count).Where(i => Math.Abs(Start(cells[i]) - pos) < Eps).ToArray();
+                if (before.Length == 0 || after.Length == 0) continue;
+                var involved = before.Concat(after).Select(i => cells[i]).ToList();
+                float from = involved.Min(c => vertical ? c.Top : c.Left), to = involved.Max(c => vertical ? c.Bottom : c.Right);
+                result.Add(new Divider(vertical, pos, from, to, before, after));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Moves a line to <paramref name="newPos"/> (clamped so no cell gets smaller than <see cref="MinCellSize"/>).</summary>
+    public static RectangleF[] Move(IReadOnlyList<RectangleF> cells, Divider d, float newPos)
+    {
+        var result = cells.ToArray();
+        float lo = d.Before.Max(i => d.Vertical ? cells[i].Left : cells[i].Top) + MinCellSize;
+        float hi = d.After.Min(i => d.Vertical ? cells[i].Right : cells[i].Bottom) - MinCellSize;
+        if (lo > hi) return result;
+        newPos = Math.Clamp(newPos, lo, hi);
+
+        foreach (int i in d.Before)
+        {
+            var c = cells[i];
+            result[i] = d.Vertical ? RectangleF.FromLTRB(c.Left, c.Top, newPos, c.Bottom) : RectangleF.FromLTRB(c.Left, c.Top, c.Right, newPos);
+        }
+        foreach (int i in d.After)
+        {
+            var c = cells[i];
+            result[i] = d.Vertical ? RectangleF.FromLTRB(newPos, c.Top, c.Right, c.Bottom) : RectangleF.FromLTRB(c.Left, newPos, c.Right, c.Bottom);
+        }
+        return result;
+    }
+}
+
 public record CollageOptions(
     CollageLayout Layout,
     int Width = 1600,

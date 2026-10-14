@@ -2,6 +2,7 @@
     x:Class="PixPolish.UI.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:PixPolish.UI"
     Title="PixPolish">
 
     <Grid Padding="24" RowSpacing="16">
@@ -56,12 +57,13 @@
                     <ScrollViewer>
                         <StackPanel Spacing="10" Padding="0,0,12,0">
                             <TextBlock Text="Layout" FontWeight="SemiBold" />
-                            <GridView x:Name="LayoutGrid" SelectionMode="Single" SelectionChanged="CollageOption_Changed" Height="170" />
+                            <GridView x:Name="LayoutGrid" SelectionMode="Single" SelectionChanged="LayoutGrid_Changed" Height="170" />
                             <Slider x:Name="SpacingSlider" Header="Spacing" Minimum="0" Maximum="25" Value="5" ValueChanged="CollageSlider_Changed" />
                             <Slider x:Name="CornerSlider" Header="Rounded corners" Minimum="0" Maximum="30" Value="0" ValueChanged="CollageSlider_Changed" />
                             <ComboBox x:Name="AspectCombo" Header="Shape" HorizontalAlignment="Stretch" SelectionChanged="CollageOption_Changed" />
                             <ComboBox x:Name="BackgroundCombo" Header="Background" HorizontalAlignment="Stretch" SelectionChanged="CollageOption_Changed" />
-                            <TextBlock Text="Click a photo in the preview, then drag to move it or scroll to zoom." TextWrapping="Wrap" Opacity="0.7" />
+                            <TextBlock Text="Drag the white lines between photos to resize them. Click a photo, then drag to move it or scroll to zoom it." TextWrapping="Wrap" Opacity="0.7" />
+                            <Button Content="Reset photo sizes (lines)" Click="ResetLines_Click" />
                             <Slider x:Name="ZoomSlider" Header="Zoom selected photo" Minimum="1" Maximum="4" StepFrequency="0.05" Value="1"
                                     IsEnabled="False" ValueChanged="ZoomSlider_Changed" />
                             <Button x:Name="ResetPhotoButton" Content="Reset selected photo" IsEnabled="False" Click="ResetPhoto_Click" />
@@ -71,16 +73,17 @@
                     <!-- Preview -->
                     <Border Grid.Column="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8">
                         <!-- Click a photo to select it, drag to move it, scroll to zoom it. -->
-                        <Grid x:Name="PreviewHost" Background="Transparent" AllowDrop="True" DragOver="Preview_DragOver" Drop="Preview_Drop"
+                        <local:CursorGrid x:Name="PreviewHost" Background="Transparent" AllowDrop="True" DragOver="Preview_DragOver" Drop="Preview_Drop"
                               PointerPressed="Preview_PointerPressed" PointerMoved="Preview_PointerMoved"
                               PointerReleased="Preview_PointerReleased" PointerCanceled="Preview_PointerReleased"
                               PointerWheelChanged="Preview_PointerWheelChanged" SizeChanged="PreviewHost_SizeChanged">
                             <Image x:Name="PreviewImage" Stretch="Uniform" IsHitTestVisible="False" />
                             <Canvas IsHitTestVisible="False">
+                                <Rectangle x:Name="DividerLine" Visibility="Collapsed" Fill="{ThemeResource SystemAccentColor}" Opacity="0.85" RadiusX="2" RadiusY="2" />
                                 <Rectangle x:Name="SelectionBox" Visibility="Collapsed" StrokeThickness="3"
                                            Stroke="{ThemeResource SystemAccentColor}" />
                             </Canvas>
-                        </Grid>
+                        </local:CursorGrid>
                     </Border>
 
                     <!-- Photos -->

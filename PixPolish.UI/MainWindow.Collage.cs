@@ -124,6 +124,7 @@ public sealed partial class MainWindow
     (CollageOptions Options, int LongSide) CurrentOptions(int longSide)
     {
         var layout = CollageLayouts.All[Math.Max(0, LayoutGrid.SelectedIndex)];
+        if (_cellOverride != null && _cellOverride.Length == layout.Count) layout = layout with { Cells = _cellOverride }; // lines the user dragged
         var (_, rw, rh) = Aspects[Math.Max(0, AspectCombo.SelectedIndex)];
         int w = rw >= rh ? longSide : (int)(longSide * rw / rh);
         int h = rw >= rh ? (int)(longSide * rh / rw) : longSide;
@@ -261,9 +262,80 @@ public sealed partial class MainWindow
         _ = RefreshPreview();
     }
 
+    // ---- Dragging the white lines between photos ----
+
+    System.Drawing.RectangleF[]? _cellOverride; // layout cells after the user dragged lines; null = layout as designed
+    Divider? _activeDivider;
+    const double LineGrabPixels = 7; // how close (screen px) the pointer must be to a line to grab it
+
+    void LayoutGrid_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        _cellOverride = null; // a different layout starts from its own proportions
+        CollageOption_Changed(sender, e);
+    }
+
+    void ResetLines_Click(object sender, RoutedEventArgs e)
+    {
+        _cellOverride = null;
+        _ = RefreshPreview();
+        UpdateSelectionBox();
+    }
+
+    Divider? DividerAt(Windows.Foundation.Point p, (double Scale, double OffX, double OffY, CollageOptions Options) g)
+    {
+        double cx = (p.X - g.OffX) / g.Scale / g.Options.Width, cy = (p.Y - g.OffY) / g.Scale / g.Options.Height; // 0..1 canvas fractions
+        double tolX = LineGrabPixels / g.Scale / g.Options.Width, tolY = LineGrabPixels / g.Scale / g.Options.Height;
+        Divider? best = null;
+        double bestDist = double.MaxValue;
+        foreach (var d in CollageDividers.Find(g.Options.Layout.Cells))
+        {
+            double along = d.Vertical ? cy : cx, across = d.Vertical ? cx : cy, tol = d.Vertical ? tolX : tolY;
+            double dist = Math.Abs(across - d.Pos);
+            if (dist <= tol && along >= d.From - tol && along <= d.To + tol && dist < bestDist) { best = d; bestDist = dist; }
+        }
+        return best;
+    }
+
+    void ShowDividerLine(Divider? d, (double Scale, double OffX, double OffY, CollageOptions Options) g)
+    {
+        if (d == null) { DividerLine.Visibility = Visibility.Collapsed; return; }
+        const double thickness = 4;
+        double w = g.Options.Width * g.Scale, h = g.Options.Height * g.Scale;
+        if (d.Vertical)
+        {
+            DividerLine.Width = thickness; DividerLine.Height = (d.To - d.From) * h;
+            Canvas.SetLeft(DividerLine, g.OffX + d.Pos * w - thickness / 2); Canvas.SetTop(DividerLine, g.OffY + d.From * h);
+        }
+        else
+        {
+            DividerLine.Width = (d.To - d.From) * w; DividerLine.Height = thickness;
+            Canvas.SetLeft(DividerLine, g.OffX + d.From * w); Canvas.SetTop(DividerLine, g.OffY + d.Pos * h - thickness / 2);
+        }
+        DividerLine.Visibility = Visibility.Visible;
+    }
+
+    void DragActiveDivider(Windows.Foundation.Point p)
+    {
+        var g = PreviewGeometry();
+        var d = _activeDivider!;
+        double frac = d.Vertical ? (p.X - g.OffX) / g.Scale / g.Options.Width : (p.Y - g.OffY) / g.Scale / g.Options.Height;
+        _cellOverride = CollageDividers.Move(g.Options.Layout.Cells, d, (float)frac);
+        var moved = CollageDividers.Find(_cellOverride).FirstOrDefault(x => x.Vertical == d.Vertical && x.Before.SequenceEqual(d.Before) && x.After.SequenceEqual(d.After));
+        ShowDividerLine(moved, PreviewGeometry());
+        UpdateSelectionBox();
+        _ = RefreshPreview();
+    }
+
     void Preview_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         var p = e.GetCurrentPoint(PreviewHost).Position;
+        var line = DividerAt(p, PreviewGeometry());
+        if (line != null)
+        {
+            _activeDivider = line;
+            PreviewHost.CapturePointer(e.Pointer);
+            return;
+        }
         SelectCell(CellAt(p, PreviewGeometry()));
         if (_selectedCell < 0) return;
         _dragging = true;
@@ -273,6 +345,16 @@ public sealed partial class MainWindow
 
     void Preview_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
+        if (_activeDivider != null) { DragActiveDivider(e.GetCurrentPoint(PreviewHost).Position); return; }
+        if (!_dragging)
+        {
+            // Hovering: light up the line under the pointer and show a resize cursor.
+            var hoverGeometry = PreviewGeometry();
+            var hover = DividerAt(e.GetCurrentPoint(PreviewHost).Position, hoverGeometry);
+            ShowDividerLine(hover, hoverGeometry);
+            PreviewHost.SetCursor(hover == null ? Microsoft.UI.Input.InputSystemCursorShape.Arrow
+                : hover.Vertical ? Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast : Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth);
+        }
         if (!_dragging || _selectedCell < 0 || _selectedCell >= _photos.Count) return;
         var p = e.GetCurrentPoint(PreviewHost).Position;
         var g = PreviewGeometry();
@@ -288,6 +370,7 @@ public sealed partial class MainWindow
     void Preview_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
     {
         _dragging = false;
+        _activeDivider = null;
         PreviewHost.ReleasePointerCaptures();
     }
 
