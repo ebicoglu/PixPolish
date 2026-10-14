@@ -56,8 +56,7 @@ public sealed partial class MainWindow : Window
             if (ToolPivot.SelectedIndex == 0)
             {
                 double percent = RadiusBox.Value;
-                bool overwrite = OverwriteCheck.IsChecked == true;
-                if (overwrite && !await Confirm("Overwrite originals?", "The original images in this folder will be replaced with rounded PNGs. This can't be undone.")) return;
+                bool overwrite = PostfixCheck.IsChecked != true; // originals are replaced unless the postfix option is ticked
                 if (roundPickedFiles)
                 {
                     var files = _roundFiles.ToList();

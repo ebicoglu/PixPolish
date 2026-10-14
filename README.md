@@ -13,7 +13,7 @@ A small Windows console tool for preparing images for articles. It works on the 
 |---|---|
 | `PixPolish.Core` | Shared logic (rounding, cleanup) used by both apps. |
 | `PixPolish` | Console app (`PixPolish.exe`) plus the `.bat` helpers. |
-| `PixPolish.UI` | WinUI 3 desktop app (`PixPolishUI.exe`): pick a folder, choose *Round corners*, *Clean up unused* or *Find missing images*, press Run. Overwrite and delete actions ask for confirmation; cleanup always previews before deleting. |
+| `PixPolish.UI` | WinUI 3 desktop app (`PixPolishUI.exe`): pick a folder, choose *Round corners*, *Clean up unused* or *Find missing images*, press Run. Rounding replaces the originals unless *Keep originals* is ticked (no confirmation); cleanup always previews and asks before deleting. |
 
 ## Build
 
@@ -29,7 +29,7 @@ The output folder contains `PixPolish.exe` and the `.bat` helpers. A `.bat` is r
 ## Usage
 
 ```bash
-PixPolish.exe round   [files...] [radiusPercent] [--overwrite]
+PixPolish.exe round   [files...] [radiusPercent] [--postfix]
 PixPolish.exe cleanup [file.md] [--dry-run]
 PixPolish.exe missing [file.md]
 PixPolish.exe collage [photos...] [options]
@@ -84,12 +84,12 @@ In the WinUI app you can do the same without a folder: use **Pick images...** on
 | Option | Meaning |
 |---|---|
 | `radiusPercent` | Corner radius as a % of the image's shorter side. Default `3`. |
-| `--overwrite`, `-o` | Replace the original instead of creating a copy. |
+| `--postfix`, `-p` | Keep the original and save `<name>-rounded.png` instead of replacing it. |
 
-- Default output: `photo.jpg` → `photo-rounded.png` (originals untouched).
-- With `--overwrite`: `photo.png` is replaced in place; `photo.jpg` becomes `photo.png` and the `.jpg` is deleted.
+- Default: the original is **replaced** - `photo.png` in place; `photo.jpg` becomes `photo.png` and the `.jpg` is deleted. Back up first if you need the originals.
+- With `--postfix` (the *Keep originals* checkbox in the app): `photo.jpg` → `photo-rounded.png`, originals untouched.
 - Output is always PNG, because JPG can't store transparent corners.
-- Files already ending in `-rounded` are skipped, so re-running is safe.
+- When scanning a folder, files already ending in `-rounded` are skipped.
 - The result is written to a temp file first, so an original is only replaced once the new image is complete.
 - Edges are anti-aliased (4×4 supersampling of the corner pixels).
 
@@ -112,7 +112,7 @@ How it works:
 Notes:
 
 - Only images directly in the folder are checked, not subfolders.
-- If the markdown uses `photo.png` and you also ran `round` (creating `photo-rounded.png`), the `-rounded` copy counts as unused and will be deleted. Use `round --overwrite`, or reference the rounded file in the markdown.
+- If the markdown uses `photo.png` and you also ran `round` (creating `photo-rounded.png`), the `-rounded` copy counts as unused and will be deleted. Use plain `round` (which replaces originals), or reference the rounded file in the markdown.
 - If no markdown file is found, nothing is deleted.
 - Try `--dry-run` first.
 
@@ -122,8 +122,8 @@ Double-click-friendly wrappers placed next to `PixPolish.exe`. Run them from the
 
 | File | Runs |
 |---|---|
-| `round.bat [radius]` | `PixPolish.exe round` |
-| `round-overwrite.bat [radius]` | `PixPolish.exe round --overwrite` |
+| `round.bat [files...] [radius]` | `PixPolish.exe round` (replaces originals) |
+| `round-copy.bat [files...] [radius]` | `PixPolish.exe round --postfix` (keeps originals) |
 | `cleanup.bat [file.md]` | `PixPolish.exe cleanup` |
 | `cleanup-dry-run.bat [file.md]` | `PixPolish.exe cleanup --dry-run` |
 | `missing.bat [file.md]` | `PixPolish.exe missing` |
@@ -135,7 +135,7 @@ Typical article workflow:
 cd D:\path\to\article-folder
 D:\path\to\PixPolish\out\cleanup-dry-run.bat
 D:\path\to\PixPolish\out\cleanup.bat
-D:\path\to\PixPolish\out\round-overwrite.bat
+D:\path\to\PixPolish\out\round.bat
 ```
 
 ## Requirements

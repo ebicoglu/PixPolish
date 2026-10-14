@@ -2,7 +2,7 @@ using System.Globalization;
 using PixPolish;
 
 // Usage:
-//   PixPolish round   [radiusPercent] [--overwrite]   round image corners (default radius 3% of the shorter side)
+//   PixPolish round   [files...] [radiusPercent] [--postfix]   round image corners, replacing the originals (default radius 3% of the shorter side)
 //   PixPolish cleanup [file.md] [--dry-run]           delete images not referenced by the markdown file(s)
 string dir = Directory.GetCurrentDirectory();
 string command = args.Length > 0 ? args[0].ToLowerInvariant() : "";
@@ -13,7 +13,8 @@ switch (command)
     case "round":
         double percent = opts.Select(a => double.TryParse(a, CultureInfo.InvariantCulture, out var v) ? v : (double?)null)
             .FirstOrDefault(v => v != null) ?? 3;
-        bool overwrite = opts.Any(a => a is "--overwrite" or "-o");
+        // Originals are replaced by default; --postfix keeps them and saves <name>-rounded.png instead.
+        bool overwrite = !opts.Any(a => a is "--postfix" or "-p");
         // Image files named on the command line are rounded instead of the whole folder.
         var named = opts.Where(a => !a.StartsWith('-') && !double.TryParse(a, CultureInfo.InvariantCulture, out _))
             .Select(a => Path.GetFullPath(a, dir)).ToList();
@@ -38,9 +39,9 @@ switch (command)
         Console.WriteLine("""
             PixPolish <command> [options]
 
-              round   [files...] [radiusPercent] [--overwrite]  Round image corners (the given files, or all in the current folder).
-                                                     Default radius 3 (% of shorter side). Saves <name>-rounded.png,
-                                                     or replaces the original with --overwrite.
+              round   [files...] [radiusPercent] [--postfix]  Round image corners (the given files, or all in the current folder).
+                                                     Default radius 3 (% of shorter side). Replaces the originals; with
+                                                     --postfix keeps them and saves <name>-rounded.png instead.
               cleanup [file.md] [--dry-run]          Delete (to Recycle Bin) images in the current folder that are not
                                                      referenced by file.md (or by all *.md files if none is given).
               missing [file.md]                      Report images referenced in the markdown but missing on disk.
