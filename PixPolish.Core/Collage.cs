@@ -53,7 +53,17 @@ public record CollageOptions(
     int Height = 1200,
     double SpacingPercent = 5,   // gap between photos (UI slider 0-25); 25 = 5% of the shorter canvas side
     double RadiusPercent = 0,    // photo corner radius, % of the shorter cell side
-    string Background = "#FFFFFF");
+    string Background = "#FFFFFF",
+    IReadOnlyDictionary<string, PhotoAdjust>? Adjustments = null); // per photo file path
+
+/// <summary>
+/// How a photo sits inside its cell. Zoom 1 = just covers the cell; larger zooms in.
+/// Pan moves the photo, in fractions of the cell size (0.1 = 10% of the cell width/height to the right/down). It is clamped so the cell stays filled.
+/// </summary>
+public record PhotoAdjust(double Zoom = 1, double PanX = 0, double PanY = 0)
+{
+    public const double MaxZoom = 4;
+}
 
 /// <summary>Renders collages. Loaded photos are cached; <c>maxSide</c> downsizes them (use it for fast previews).</summary>
 public sealed class CollageRenderer : IDisposable
@@ -72,17 +82,9 @@ public sealed class CollageRenderer : IDisposable
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.Clear(ParseColor(o.Background));
 
-        float gap = (float)(Math.Min(o.Width, o.Height) * o.SpacingPercent / 100.0 * 0.2);
         for (int i = 0; i < o.Layout.Count; i++)
         {
-            var c = o.Layout.Cells[i];
-            // Gap between cells, and the same gap as outer margin.
-            float left = c.Left * o.Width, top = c.Top * o.Height, right = c.Right * o.Width, bottom = c.Bottom * o.Height;
-            left += c.Left <= 0.0001f ? gap : gap / 2;
-            top += c.Top <= 0.0001f ? gap : gap / 2;
-            right -= c.Right >= 0.9999f ? gap : gap / 2;
-            bottom -= c.Bottom >= 0.9999f ? gap : gap / 2;
-            var cell = Rectangle.Round(RectangleF.FromLTRB(left, top, right, bottom));
+            var cell = CellRect(o, i);
             if (cell.Width < 2 || cell.Height < 2) continue;
 
             float radius = (float)(Math.Min(cell.Width, cell.Height) * o.RadiusPercent / 100.0);
@@ -95,7 +97,9 @@ public sealed class CollageRenderer : IDisposable
                 continue;
             }
             // Fill the cell ("cover"): scale up and centre-crop, then paint it as a texture so rounded edges stay anti-aliased.
-            using var fitted = Cover(photo, cell.Size);
+            PhotoAdjust? adjust = null;
+            o.Adjustments?.TryGetValue(photos[i], out adjust);
+            using var fitted = Cover(photo, cell.Size, adjust);
             using var brush = new TextureBrush(fitted);
             brush.TranslateTransform(cell.X, cell.Y);
             g.FillPath(brush, path);
@@ -129,11 +133,43 @@ public sealed class CollageRenderer : IDisposable
         return result;
     }
 
-    static Bitmap Cover(Bitmap src, Size size)
+    /// <summary>The cell's rectangle in canvas pixels (including the spacing and outer margin).</summary>
+    public static Rectangle CellRect(CollageOptions o, int index)
     {
-        double scale = Math.Max((double)size.Width / src.Width, (double)size.Height / src.Height);
+        float gap = (float)(Math.Min(o.Width, o.Height) * o.SpacingPercent / 100.0 * 0.2);
+        var c = o.Layout.Cells[index];
+        // Gap between cells, and the same gap as outer margin.
+        float left = c.Left * o.Width, top = c.Top * o.Height, right = c.Right * o.Width, bottom = c.Bottom * o.Height;
+        left += c.Left <= 0.0001f ? gap : gap / 2;
+        top += c.Top <= 0.0001f ? gap : gap / 2;
+        right -= c.Right >= 0.9999f ? gap : gap / 2;
+        bottom -= c.Bottom >= 0.9999f ? gap : gap / 2;
+        return Rectangle.Round(RectangleF.FromLTRB(left, top, right, bottom));
+    }
+
+    /// <summary>How far (in cell fractions) the photo can be panned each way before the cell would show a gap.</summary>
+    public (double X, double Y) PanLimit(CollageOptions o, int cellIndex, string photo, double zoom)
+    {
+        var img = Load(photo);
+        var cell = CellRect(o, cellIndex);
+        if (img == null || cell.Width < 2 || cell.Height < 2) return (0, 0);
+        double scale = Math.Max((double)cell.Width / img.Width, (double)cell.Height / img.Height) * zoom;
+        return (Math.Max(0, (img.Width * scale - cell.Width) / 2 / cell.Width),
+                Math.Max(0, (img.Height * scale - cell.Height) / 2 / cell.Height));
+    }
+
+    static Bitmap Cover(Bitmap src, Size size, PhotoAdjust? adjust)
+    {
+        double zoom = Math.Clamp(adjust?.Zoom ?? 1, 1, PhotoAdjust.MaxZoom);
+        double scale = Math.Max((double)size.Width / src.Width, (double)size.Height / src.Height) * zoom;
         float srcW = (float)(size.Width / scale), srcH = (float)(size.Height / scale);
-        var srcRect = new RectangleF((src.Width - srcW) / 2, (src.Height - srcH) / 2, srcW, srcH);
+        // Panning right shows the part of the photo further left, hence the minus.
+        double centerX = src.Width / 2.0 - (adjust?.PanX ?? 0) * size.Width / scale;
+        double centerY = src.Height / 2.0 - (adjust?.PanY ?? 0) * size.Height / scale;
+        var srcRect = new RectangleF(
+            (float)Math.Clamp(centerX - srcW / 2, 0, Math.Max(0, src.Width - srcW)),
+            (float)Math.Clamp(centerY - srcH / 2, 0, Math.Max(0, src.Height - srcH)),
+            srcW, srcH);
         var result = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppArgb);
         using var g = Graphics.FromImage(result);
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;

@@ -61,12 +61,26 @@
                             <Slider x:Name="CornerSlider" Header="Rounded corners" Minimum="0" Maximum="30" Value="0" ValueChanged="CollageSlider_Changed" />
                             <ComboBox x:Name="AspectCombo" Header="Shape" HorizontalAlignment="Stretch" SelectionChanged="CollageOption_Changed" />
                             <ComboBox x:Name="BackgroundCombo" Header="Background" HorizontalAlignment="Stretch" SelectionChanged="CollageOption_Changed" />
+                            <TextBlock Text="Click a photo in the preview, then drag to move it or scroll to zoom." TextWrapping="Wrap" Opacity="0.7" />
+                            <Slider x:Name="ZoomSlider" Header="Zoom selected photo" Minimum="1" Maximum="4" StepFrequency="0.05" Value="1"
+                                    IsEnabled="False" ValueChanged="ZoomSlider_Changed" />
+                            <Button x:Name="ResetPhotoButton" Content="Reset selected photo" IsEnabled="False" Click="ResetPhoto_Click" />
                         </StackPanel>
                     </ScrollViewer>
 
                     <!-- Preview -->
                     <Border Grid.Column="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8">
-                        <Image x:Name="PreviewImage" Stretch="Uniform" />
+                        <!-- Click a photo to select it, drag to move it, scroll to zoom it. -->
+                        <Grid x:Name="PreviewHost" Background="Transparent"
+                              PointerPressed="Preview_PointerPressed" PointerMoved="Preview_PointerMoved"
+                              PointerReleased="Preview_PointerReleased" PointerCanceled="Preview_PointerReleased"
+                              PointerWheelChanged="Preview_PointerWheelChanged" SizeChanged="PreviewHost_SizeChanged">
+                            <Image x:Name="PreviewImage" Stretch="Uniform" IsHitTestVisible="False" />
+                            <Canvas IsHitTestVisible="False">
+                                <Rectangle x:Name="SelectionBox" Visibility="Collapsed" StrokeThickness="3"
+                                           Stroke="{ThemeResource SystemAccentColor}" />
+                            </Canvas>
+                        </Grid>
                     </Border>
 
                     <!-- Photos -->

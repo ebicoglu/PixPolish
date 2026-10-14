@@ -61,7 +61,7 @@ public sealed partial class MainWindow
         BackgroundCombo.SelectedIndex = 0;
 
         PhotoList.ItemsSource = _photos;
-        _photos.CollectionChanged += (_, _) => { UpdatePhotosHeader(); _ = RefreshPreview(); };
+        _photos.CollectionChanged += (_, _) => { UpdatePhotosHeader(); ClampSelection(); _ = RefreshPreview(); };
 
         _collageReady = true;
         _ = RefreshPreview();
@@ -87,6 +87,7 @@ public sealed partial class MainWindow
     {
         if (!_collageReady) return;
         UpdatePhotosHeader();
+        ClampSelection();
         _ = RefreshPreview();
     }
 
@@ -121,7 +122,8 @@ public sealed partial class MainWindow
         int w = rw >= rh ? longSide : (int)(longSide * rw / rh);
         int h = rw >= rh ? (int)(longSide * rh / rw) : longSide;
         string bg = Backgrounds[Math.Max(0, BackgroundCombo.SelectedIndex)].Color;
-        return (new CollageOptions(layout, w, h, SpacingSlider.Value, CornerSlider.Value, bg), longSide);
+        var adjustments = new Dictionary<string, PhotoAdjust>(_adjust, StringComparer.OrdinalIgnoreCase);
+        return (new CollageOptions(layout, w, h, SpacingSlider.Value, CornerSlider.Value, bg, adjustments), longSide);
     }
 
     async Task RefreshPreview()
@@ -140,6 +142,137 @@ public sealed partial class MainWindow
         var image = new BitmapImage();
         await image.SetSourceAsync(stream);
         PreviewImage.Source = image;
+        UpdateSelectionBox();
+    }
+
+    // ---- Resizing / moving a photo inside its cell ----
+
+    readonly Dictionary<string, PhotoAdjust> _adjust = new(StringComparer.OrdinalIgnoreCase);
+    int _selectedCell = -1;
+    bool _dragging, _suppressZoomEvent;
+    Windows.Foundation.Point _lastPoint;
+
+    // Where the (uniformly stretched) preview image sits inside PreviewHost, and its scale relative to canvas pixels.
+    (double Scale, double OffX, double OffY, CollageOptions Options) PreviewGeometry()
+    {
+        var options = CurrentOptions(800).Options;
+        double scale = Math.Min(PreviewHost.ActualWidth / options.Width, PreviewHost.ActualHeight / options.Height);
+        if (double.IsNaN(scale) || scale <= 0) scale = 1;
+        return (scale, (PreviewHost.ActualWidth - options.Width * scale) / 2, (PreviewHost.ActualHeight - options.Height * scale) / 2, options);
+    }
+
+    int CellAt(Windows.Foundation.Point p, (double Scale, double OffX, double OffY, CollageOptions Options) g)
+    {
+        var canvasPoint = new System.Drawing.Point((int)((p.X - g.OffX) / g.Scale), (int)((p.Y - g.OffY) / g.Scale));
+        for (int i = 0; i < Math.Min(g.Options.Layout.Count, _photos.Count); i++)
+            if (CollageRenderer.CellRect(g.Options, i).Contains(canvasPoint)) return i;
+        return -1;
+    }
+
+    void SelectCell(int cell)
+    {
+        _selectedCell = cell;
+        _suppressZoomEvent = true;
+        ZoomSlider.Value = cell >= 0 && _adjust.TryGetValue(_photos[cell].Path, out var a) ? a.Zoom : 1;
+        _suppressZoomEvent = false;
+        ZoomSlider.IsEnabled = ResetPhotoButton.IsEnabled = cell >= 0;
+        UpdateSelectionBox();
+    }
+
+    void ClampSelection()
+    {
+        if (_selectedCell >= Math.Min(_photos.Count, CollageLayouts.All[Math.Max(0, LayoutGrid.SelectedIndex)].Count)) SelectCell(-1);
+        else UpdateSelectionBox();
+    }
+
+    void UpdateSelectionBox()
+    {
+        if (_selectedCell < 0 || _selectedCell >= _photos.Count || _selectedCell >= CollageLayouts.All[Math.Max(0, LayoutGrid.SelectedIndex)].Count)
+        {
+            SelectionBox.Visibility = Visibility.Collapsed;
+            return;
+        }
+        var g = PreviewGeometry();
+        var cell = CollageRenderer.CellRect(g.Options, _selectedCell);
+        Canvas.SetLeft(SelectionBox, g.OffX + cell.X * g.Scale);
+        Canvas.SetTop(SelectionBox, g.OffY + cell.Y * g.Scale);
+        SelectionBox.Width = cell.Width * g.Scale;
+        SelectionBox.Height = cell.Height * g.Scale;
+        SelectionBox.Visibility = Visibility.Visible;
+    }
+
+    void PreviewHost_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSelectionBox();
+
+    /// <summary>Sets zoom/pan for the selected photo, keeping the photo covering its cell.</summary>
+    void ApplyAdjust(int cell, double zoom, double panX, double panY)
+    {
+        var options = CurrentOptions(800).Options;
+        string path = _photos[cell].Path;
+        zoom = Math.Clamp(zoom, 1, PhotoAdjust.MaxZoom);
+        (double limX, double limY) = (0, 0);
+        lock (_previewLock) (limX, limY) = _previewRenderer.PanLimit(options, cell, path, zoom);
+        _adjust[path] = new PhotoAdjust(zoom, Math.Clamp(panX, -limX, limX), Math.Clamp(panY, -limY, limY));
+        _ = RefreshPreview();
+    }
+
+    void Preview_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var p = e.GetCurrentPoint(PreviewHost).Position;
+        SelectCell(CellAt(p, PreviewGeometry()));
+        if (_selectedCell < 0) return;
+        _dragging = true;
+        _lastPoint = p;
+        PreviewHost.CapturePointer(e.Pointer);
+    }
+
+    void Preview_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_dragging || _selectedCell < 0 || _selectedCell >= _photos.Count) return;
+        var p = e.GetCurrentPoint(PreviewHost).Position;
+        var g = PreviewGeometry();
+        var cell = CollageRenderer.CellRect(g.Options, _selectedCell);
+        var current = _adjust.GetValueOrDefault(_photos[_selectedCell].Path) ?? new PhotoAdjust();
+        // Pan is stored in cell fractions, so convert the mouse movement from screen pixels.
+        ApplyAdjust(_selectedCell, current.Zoom,
+            current.PanX + (p.X - _lastPoint.X) / (g.Scale * cell.Width),
+            current.PanY + (p.Y - _lastPoint.Y) / (g.Scale * cell.Height));
+        _lastPoint = p;
+    }
+
+    void Preview_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        _dragging = false;
+        PreviewHost.ReleasePointerCaptures();
+    }
+
+    void Preview_PointerWheelChanged(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(PreviewHost);
+        int cell = CellAt(point.Position, PreviewGeometry());
+        if (cell < 0) return;
+        if (cell != _selectedCell) SelectCell(cell);
+        var current = _adjust.GetValueOrDefault(_photos[cell].Path) ?? new PhotoAdjust();
+        double zoom = current.Zoom * Math.Pow(1.1, point.Properties.MouseWheelDelta / 120.0);
+        ApplyAdjust(cell, zoom, current.PanX, current.PanY);
+        _suppressZoomEvent = true;
+        ZoomSlider.Value = Math.Clamp(zoom, 1, PhotoAdjust.MaxZoom);
+        _suppressZoomEvent = false;
+        e.Handled = true;
+    }
+
+    void ZoomSlider_Changed(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
+    {
+        if (_suppressZoomEvent || _selectedCell < 0 || _selectedCell >= _photos.Count) return;
+        var current = _adjust.GetValueOrDefault(_photos[_selectedCell].Path) ?? new PhotoAdjust();
+        ApplyAdjust(_selectedCell, e.NewValue, current.PanX, current.PanY);
+    }
+
+    void ResetPhoto_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selectedCell < 0 || _selectedCell >= _photos.Count) return;
+        _adjust.Remove(_photos[_selectedCell].Path);
+        SelectCell(_selectedCell);
+        _ = RefreshPreview();
     }
 
     /// <summary>Renders the collage at full resolution and saves it as collage.png (collage-2.png, ... if it exists).</summary>
