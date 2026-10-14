@@ -13,8 +13,14 @@ namespace PixPolish.UI;
 
 public sealed class PhotoItem
 {
-    public PhotoItem(string path) => Path = path;
+    public PhotoItem(string path)
+    {
+        Path = path;
+        // Decoding at thumbnail size keeps big photos cheap.
+        Thumbnail = new BitmapImage { DecodePixelWidth = 144, UriSource = new Uri(path) };
+    }
     public string Path { get; }
+    public BitmapImage Thumbnail { get; }
     public string Name => System.IO.Path.GetFileName(Path);
 }
 
@@ -199,6 +205,46 @@ public sealed partial class MainWindow
         SelectionBox.Width = cell.Width * g.Scale;
         SelectionBox.Height = cell.Height * g.Scale;
         SelectionBox.Visibility = Visibility.Visible;
+    }
+
+    // Drag a photo from the list onto a cell of the preview: it swaps places with the photo that is in that cell.
+    PhotoItem? _draggedPhoto;
+
+    void PhotoList_DragItemsStarting(object sender, DragItemsStartingEventArgs e)
+    {
+        _draggedPhoto = e.Items.FirstOrDefault() as PhotoItem;
+        e.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+    }
+
+    void Preview_DragOver(object sender, DragEventArgs e)
+    {
+        e.AcceptedOperation = _draggedPhoto != null
+            ? Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move
+            : Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
+        e.DragUIOverride.Caption = "Place here";
+    }
+
+    void Preview_Drop(object sender, DragEventArgs e)
+    {
+        if (_draggedPhoto == null) return;
+        var g = PreviewGeometry();
+        var p = e.GetPosition(PreviewHost);
+        var canvasPoint = new System.Drawing.Point((int)((p.X - g.OffX) / g.Scale), (int)((p.Y - g.OffY) / g.Scale));
+        int from = _photos.IndexOf(_draggedPhoto);
+        for (int cell = 0; cell < g.Options.Layout.Count && from >= 0; cell++)
+        {
+            if (!CollageRenderer.CellRect(g.Options, cell).Contains(canvasPoint)) continue;
+            int to = Math.Min(cell, _photos.Count - 1);
+            if (to != from)
+            {
+                var other = _photos[to];
+                _photos[to] = _draggedPhoto;
+                _photos[from] = other;
+            }
+            SelectCell(to);
+            break;
+        }
+        _draggedPhoto = null;
     }
 
     void PreviewHost_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateSelectionBox();

@@ -71,7 +71,7 @@
                     <!-- Preview -->
                     <Border Grid.Column="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="6" Padding="8">
                         <!-- Click a photo to select it, drag to move it, scroll to zoom it. -->
-                        <Grid x:Name="PreviewHost" Background="Transparent"
+                        <Grid x:Name="PreviewHost" Background="Transparent" AllowDrop="True" DragOver="Preview_DragOver" Drop="Preview_Drop"
                               PointerPressed="Preview_PointerPressed" PointerMoved="Preview_PointerMoved"
                               PointerReleased="Preview_PointerReleased" PointerCanceled="Preview_PointerReleased"
                               PointerWheelChanged="Preview_PointerWheelChanged" SizeChanged="PreviewHost_SizeChanged">
@@ -91,10 +91,20 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <TextBlock x:Name="PhotosHeader" Text="Photos (drag to reorder)" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <ListView Grid.Row="1" x:Name="PhotoList" CanReorderItems="True" AllowDrop="True" SelectionMode="Single">
+                        <ListView Grid.Row="1" x:Name="PhotoList" CanReorderItems="True" CanDragItems="True" AllowDrop="True"
+                                  SelectionMode="Single" DragItemsStarting="PhotoList_DragItemsStarting">
                             <ListView.ItemTemplate>
                                 <DataTemplate>
-                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                    <Grid ColumnSpacing="10" Padding="0,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="72" Height="54" CornerRadius="4">
+                                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                        </Border>
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    </Grid>
                                 </DataTemplate>
                             </ListView.ItemTemplate>
                         </ListView>

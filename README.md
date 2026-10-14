@@ -58,7 +58,7 @@ PixPolish.exe collage --list
 
 Photos fill their cell completely (scaled and centre-cropped). Extra photos are ignored; empty cells stay light gray.
 
-In the WinUI app, the **Collage** tab shows a live preview: pick a layout, move the spacing / corner sliders, choose the shape (4:3, 3:2, 16:9, 1:1, 3:4) and background, and drag the photos in the list to reorder them. To resize a photo inside its cell, click it in the preview (it gets an outline), then **scroll to zoom** and **drag to move** it, or use the *Zoom selected photo* slider; *Reset selected photo* undoes it. The photo always keeps covering its cell, and zoom/position follow the photo if you reorder. *Choose photos...* replaces the list (the folder's images are the default). **Run** saves a 2400px collage as `collage.png` (or `collage-2.png`, ... without overwriting).
+In the WinUI app, the **Collage** tab shows a live preview: pick a layout, move the spacing / corner sliders, choose the shape (4:3, 3:2, 16:9, 1:1, 3:4) and background, and the photo list shows thumbnails; drag them to reorder, or drop one onto a cell of the preview to swap it into that cell. To resize a photo inside its cell, click it in the preview (it gets an outline), then **scroll to zoom** and **drag to move** it, or use the *Zoom selected photo* slider; *Reset selected photo* undoes it. The photo always keeps covering its cell, and zoom/position follow the photo if you reorder. *Choose photos...* replaces the list (the folder's images are the default). **Run** saves a 2400px collage as `collage.png` (or `collage-2.png`, ... without overwriting).
 
 ### `missing`
 
